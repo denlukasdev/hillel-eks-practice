@@ -1,0 +1,24 @@
+# ---------------------------------------------------------------------------
+# Звідки брати чарти.
+#
+# HelmRepository — це той самий source-controller, що тягне ваш git,
+# тільки тепер він тягне index.yaml репозиторію чартів. Аналог команди
+# helm repo add, але описаний у git і живий у кластері.
+# ---------------------------------------------------------------------------
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: eks-charts
+  namespace: flux-system
+spec:
+  url: https://aws.github.io/eks-charts
+  interval: 1h        # чарти змінюються рідко — частіше тягти немає сенсу
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: external-secrets
+  namespace: flux-system
+spec:
+  url: https://charts.external-secrets.io
+  interval: 1h

@@ -1,11 +1,9 @@
 # ---------------------------------------------------------------------------
 # web — фронт, що проксіює /api/ на сервіс api за іменем.
 #
-# Service типу ClusterIP, а не LoadBalancer — свідомо:
-#   1) контролер балансувальників у кластері ще не встановлений;
-#   2) кожен LoadBalancer — це окремий ELB в AWS, який коштує гроші
-#      навіть тоді, коли вузли опущені в нуль.
-# Дістатися до застосунку: kubectl port-forward -n shop svc/web 8080:80
+# Service web лишається ClusterIP — це внутрішня адреса для інших подів.
+# Вхід з інтернету — окремий сервіс web-public (web-public.yaml),
+# який вмикається одним рядком у kustomization.yaml.
 # ---------------------------------------------------------------------------
 apiVersion: v1
 kind: ConfigMap
@@ -17,9 +15,18 @@ data:
       listen 80;
       location /healthz { return 200 'ok'; }
       location /api/ { proxy_pass http://api/; }
+
+      # Заняття 10: текст банера лежить у ФАЙЛІ, який змонтовано з Secret.
+      # nginx читає файл на кожен запит, тому нове значення видно
+      # без перезапуску пода.
+      location = /banner {
+        default_type text/plain;
+        alias /etc/shop/banner/banner.txt;
+      }
+
       location / {
         default_type text/plain;
-        return 200 'shop web on EKS, delivered by Flux. try /api/\n';
+        return 200 'shop web on EKS, delivered by Flux. try /api/ and /banner\n';
       }
     }
 ---
@@ -58,10 +65,32 @@ spec:
           volumeMounts:
             - name: conf
               mountPath: /etc/nginx/conf.d
+            - name: banner
+              mountPath: /etc/shop/banner
+              readOnly: true
       volumes:
         - name: conf
           configMap:
             name: web-nginx
+        # -------------------------------------------------------------------
+        # Заняття 10: Secret як ФАЙЛ, а не як змінна середовища.
+        # Kubelet сам оновлює змонтовані файли, коли змінюється Secret
+        # (із затримкою до хвилини-двох). Порівняйте з api.yaml, де той самий
+        # Secret прочитано як змінну — там оновлення без перезапуску немає.
+        #
+        # items: беремо з Secret лише ключ BANNER. Пароль бази в цей под
+        # не потрапляє взагалі — кожному поду лише те, що йому потрібно.
+        #
+        # optional: true — поки Secret не створено, тека просто порожня,
+        # а /banner відповідає 404. Под при цьому працює.
+        # -------------------------------------------------------------------
+        - name: banner
+          secret:
+            secretName: shop-config
+            optional: true
+            items:
+              - key: BANNER
+                path: banner.txt
 ---
 apiVersion: v1
 kind: Service
