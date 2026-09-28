@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-api
+  labels:
+    {{- include "shop.labels" (dict "root" . "component" "api") | nindent 4 }}
+data:
+  default.conf: |
+    server {
+      listen 80;
+      location /healthz { return 200 'ok'; }
+      location / {
+        default_type application/json;
+        return 200 '{"service":"api","version":"{{ .Values.api.version }}","release":"{{ .Release.Name }}"}';
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-api
+  labels:
+    {{- include "shop.labels" (dict "root" . "component" "api") | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      {{- include "shop.selectorLabels" (dict "root" . "component" "api") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "shop.selectorLabels" (dict "root" . "component" "api") | nindent 8 }}
+    spec:
+      containers:
+        - name: nginx
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 80
+          {{- if .Values.secrets.enabled }}
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-config
+                  key: DB_PASSWORD
+                  optional: true
+          {{- end }}
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: conf
+          configMap:
+            name: {{ .Release.Name }}-api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-api
+  labels:
+    {{- include "shop.labels" (dict "root" . "component" "api") | nindent 4 }}
+spec:
+  selector:
+    {{- include "shop.selectorLabels" (dict "root" . "component" "api") | nindent 4 }}
+  ports:
+    - port: 80
+      targetPort: 80

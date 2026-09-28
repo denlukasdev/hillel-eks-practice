@@ -1,0 +1,49 @@
+# ---------------------------------------------------------------------------
+# Значення за замовчуванням. Кожне можна перевизначити:
+#   helm install ... --set web.replicas=2
+#   helm install ... -f my-values.yaml
+# ---------------------------------------------------------------------------
+
+image:
+  repository: nginx
+  tag: "1.27-alpine"
+
+web:
+  replicas: 1
+  # Текст головної сторінки. Лежить у ConfigMap — змініть і подивіться,
+  # як поди перезапускаються самі (анотація checksum/config у web.yaml).
+  # Без апострофів: текст потрапляє в рядок nginx у одинарних лапках.
+  message: "shop web on EKS, installed by Helm"
+
+api:
+  replicas: 1
+  version: "1"
+
+# Секрети з Parameter Store через External Secrets Operator (заняття 10).
+secrets:
+  enabled: true
+  region: eu-central-1
+  refreshInterval: 1m
+  bannerParameter: /shop/banner
+  dbPasswordParameter: /shop/db-password
+
+# База даних. За замовчуванням вимкнена: кожна інсталяція чарту з нею —
+# ще один диск EBS і ще 256Mi пам'яті на вузлі.
+postgres:
+  enabled: false
+  image: postgres:18-alpine
+  storage: 1Gi
+  storageClass: gp3
+
+# Публічний NLB. За замовчуванням вимкнений: тарифікується погодинно.
+publicService:
+  enabled: false
+
+# Ресурси для контейнерів web і api.
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi

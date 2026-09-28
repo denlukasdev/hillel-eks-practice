@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-web
+  labels:
+    {{- include "shop.labels" (dict "root" . "component" "web") | nindent 4 }}
+spec:
+  replicas: {{ .Values.web.replicas }}
+  selector:
+    matchLabels:
+      {{- include "shop.selectorLabels" (dict "root" . "component" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "shop.selectorLabels" (dict "root" . "component" "web") | nindent 8 }}
+      annotations:
+        # Зміна ConfigMap сама по собі НЕ перезапускає поди: nginx прочитав
+        # конфігурацію на старті. Контрольна сума від вмісту ConfigMap
+        # змінюється разом із ним -> змінюється шаблон пода -> rolling update.
+        checksum/config: {{ include (print $.Template.BasePath "/web-configmap.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: nginx
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+            {{- if .Values.secrets.enabled }}
+            - name: banner
+              mountPath: /etc/shop/banner
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: conf
+          configMap:
+            name: {{ .Release.Name }}-web
+        {{- if .Values.secrets.enabled }}
+        - name: banner
+          secret:
+            secretName: {{ .Release.Name }}-config
+            optional: true
+            items:
+              - key: BANNER
+                path: banner.txt
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-web
+  labels:
+    {{- include "shop.labels" (dict "root" . "component" "web") | nindent 4 }}
+spec:
+  selector:
+    {{- include "shop.selectorLabels" (dict "root" . "component" "web") | nindent 4 }}
+  ports:
+    - port: 80
+      targetPort: 80

@@ -1,0 +1,95 @@
+# ---------------------------------------------------------------------------
+# Заняття 11. PostgreSQL у StatefulSet на диску EBS.
+#
+# Той самий StatefulSet, що в блоці про Kubernetes на minikube. Відмінності:
+#   - диск справжній: EBS gp3, створює драйвер EBS CSI;
+#   - пароль не в маніфесті, а в Secret shop-config, який приносить
+#     External Secrets Operator із Parameter Store (заняття 10).
+#
+# ПОТРЕБУЄ: увімкнених secret-store.yaml і external-secret.yaml.
+# Без Secret shop-config под висітиме в CreateContainerConfigError.
+#
+# У продакшні базу на AWS зазвичай беруть керовану — RDS (заняття 3):
+# резервні копії, репліки й оновлення робить AWS. Тут — навчальний варіант.
+# ---------------------------------------------------------------------------
+
+# Headless-сервіс (clusterIP: None): не балансує, а дає кожному поду
+# StatefulSet стабільне DNS-ім'я: postgres-0.postgres.shop.svc.cluster.local
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:18-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              value: shop
+            # Пароль — з Secret, створеного ESO. У маніфесті лише посилання.
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shop-config
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", "shop"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            # PostgreSQL 18 змінив розкладку даних: том монтується в
+            # /var/lib/postgresql, а сама база лежить у підтеці 18/docker.
+            # Старий шлях /var/lib/postgresql/data з образом 18 НЕ зберігає
+            # дані між перезапусками — так роблять приклади для версій до 17.
+            - name: data
+              mountPath: /var/lib/postgresql
+
+  # Для кожного пода StatefulSet створює власний PVC за цим шаблоном:
+  # data-postgres-0. PVC НЕ видаляється разом із подом чи StatefulSet —
+  # дані переживають і перезапуск, і видалення.
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]   # EBS підключається лише до одного вузла
+        storageClassName: gp3
+        resources:
+          requests:
+            storage: 1Gi

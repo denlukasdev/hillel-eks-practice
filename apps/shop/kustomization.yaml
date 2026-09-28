@@ -18,3 +18,8 @@ resources:
   # Розкоментуйте обидва рядки разом: ExternalSecret без SecretStore не працює.
   # - secret-store.yaml
   # - external-secret.yaml
+
+  # --- Заняття 11, практика 1: база даних ----------------------------------
+  # Потребує рядків практики 2 заняття 10: пароль бази приходить із Secret,
+  # який створює ExternalSecret.
+  # - postgres.yaml

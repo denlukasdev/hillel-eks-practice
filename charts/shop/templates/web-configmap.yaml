@@ -1,0 +1,27 @@
+{{/*
+Конфігурація nginx для web. Окремим файлом, щоб web.yaml міг порахувати
+від неї контрольну суму (анотація checksum/config).
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-web
+  labels:
+    {{- include "shop.labels" (dict "root" . "component" "web") | nindent 4 }}
+data:
+  default.conf: |
+    server {
+      listen 80;
+      location /healthz { return 200 'ok'; }
+      location /api/ { proxy_pass http://{{ .Release.Name }}-api/; }
+      {{- if .Values.secrets.enabled }}
+      location = /banner {
+        default_type text/plain;
+        alias /etc/shop/banner/banner.txt;
+      }
+      {{- end }}
+      location / {
+        default_type text/plain;
+        return 200 '{{ .Values.web.message }}\n';
+      }
+    }

@@ -1,0 +1,15 @@
+Реліз {{ .Release.Name }} встановлено в namespace {{ .Release.Namespace }}.
+
+Перевірити:
+  kubectl get pods -n {{ .Release.Namespace }}
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ .Release.Name }}-web 8081:80
+  curl localhost:8081/  і  curl localhost:8081/api/
+{{- if .Values.postgres.enabled }}
+
+База: kubectl exec -it -n {{ .Release.Namespace }} {{ .Release.Name }}-postgres-0 -- psql -U postgres -d shop
+Після helm uninstall диск лишиться: kubectl get pvc -n {{ .Release.Namespace }}
+{{- end }}
+{{- if .Values.publicService.enabled }}
+
+УВАГА: увімкнено публічний NLB — він тарифікується погодинно. Не забудьте helm uninstall.
+{{- end }}
