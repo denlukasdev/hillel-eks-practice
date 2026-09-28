@@ -1,6 +1,7 @@
 # ---------------------------------------------------------------------------
-# Заняття 9. Скопіюйте цей файл у теку cluster/ разом із kubernetes-providers.tf.
-# Потім додайте у terraform.tfvars рядок git_url з адресою свого форку.
+# Заняття 10. Цей файл ЗАМІНЮЄ cluster/flux.tf, скопійований на занятті 9.
+# Порівняно з тією версією змінилось одне: синхронізація застосунку тепер
+# чекає на синхронізацію інфраструктури (dependsOn у кроці 2).
 # ---------------------------------------------------------------------------
 
 variable "git_url" {
@@ -77,6 +78,12 @@ resource "helm_release" "flux" {
 #
 # depends_on обов'язковий: ці два типи з'являються в кластері лише після
 # встановлення контролерів із кроку 1.
+#
+# НОВЕ НА ЗАНЯТТІ 10: dependsOn у spec — це вже не Terraform, а Flux.
+# kustomize-controller не застосує теку apps/shop, поки Kustomization
+# infra-sync (flux-infrastructure.tf) не стане Ready. Без цього
+# ExternalSecret прилетів би в кластер раніше, ніж з'явився його тип,
+# і застосування всієї теки впало б.
 # ---------------------------------------------------------------------------
 resource "helm_release" "flux_sync" {
   name       = "shop-sync"
@@ -85,7 +92,7 @@ resource "helm_release" "flux_sync" {
   version    = "1.15.1"
   namespace  = "flux-system"
 
-  depends_on = [helm_release.flux]
+  depends_on = [helm_release.flux, helm_release.infra_sync]
 
   values = [yamlencode({
     gitRepository = {
@@ -104,6 +111,11 @@ resource "helm_release" "flux_sync" {
         interval = var.sync_interval
         # prune: прибрали файл із репозиторію — Flux прибере й об'єкт у кластері
         prune = true
+
+        # нове на занятті 10
+        dependsOn = [
+          { name = "infra-sync" }
+        ]
       }
     }
   })]
@@ -114,6 +126,7 @@ output "flux_check_commands" {
   value       = <<-EOT
     kubectl get pods -n flux-system
     kubectl get gitrepositories,kustomizations -n flux-system
+    kubectl get helmreleases -n flux-system
     kubectl get pods -n shop
   EOT
 }
