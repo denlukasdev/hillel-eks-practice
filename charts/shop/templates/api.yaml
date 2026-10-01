@@ -11,7 +11,7 @@ data:
       location /healthz { return 200 'ok'; }
       location / {
         default_type application/json;
-        return 200 '{"service":"api","version":"{{ .Values.api.version }}","release":"{{ .Release.Name }}"}';
+        return 200 '{"service":"api","version":"{{ .Values.api.version }}","message":"{{ .Values.api.message }}","release":"{{ .Release.Name }}"}';
       }
     }
 ---
