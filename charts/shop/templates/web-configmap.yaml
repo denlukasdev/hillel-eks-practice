@@ -20,6 +20,12 @@ data:
         alias /etc/shop/banner/banner.txt;
       }
       {{- end }}
+      # Відомості про збірку. Файл є лише у власному образі (app/Dockerfile);
+      # зі стандартним nginx ця адреса віддає 404.
+      location = /version {
+        default_type text/plain;
+        alias /usr/share/nginx/html/version.txt;
+      }
       location / {
         default_type text/plain;
         return 200 '{{ .Values.web.message }}\n';

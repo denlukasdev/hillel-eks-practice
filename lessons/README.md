@@ -6,12 +6,14 @@
 ```bash
 cp lessons/09-flux/*.tf cluster/                 # заняття 9
 cp -r lessons/10-traffic-secrets/. cluster/      # заняття 10: разом із текою policies/
+cp lessons/12-cicd/*.tf cluster/                 # заняття 12 (домашнє завдання)
 ```
 
 | Тека | Коли | Що додає |
 |---|---|---|
 | `09-flux/` | заняття 9 | провайдер helm, Flux і синхронізацію застосунку з git |
 | `10-traffic-secrets/` | заняття 10 | ролі й Pod Identity для LBC та ESO, синхронізацію `infra-sync`; **`flux.tf` замінює файл із заняття 9** |
+| `12-cicd/` | заняття 12, домашнє завдання | реєстри ECR, роль для GitHub Actions через OIDC, доступ Flux до ECR, синхронізацію `release-sync`; потребує файлів занять 9 і 10 |
 | `extra-metrics-server/` | за бажанням, після 09 | metrics-server для `kubectl top` |
 
 ## Чому файли копіюються, а не лежать у cluster/ з початку

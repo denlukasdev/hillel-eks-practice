@@ -24,3 +24,7 @@ node_desired_size = 1
 # --- Заняття 9: після копіювання файлів із lessons/09-flux ---
 # Адреса ВАШОГО публічного форку цього репозиторію.
 # git_url = "https://github.com/vash-login/hillel-eks-practice"
+
+# --- Заняття 12: після копіювання файлів із lessons/12-cicd ---
+# ВАШ форк у форматі власник/репозиторій — лише його workflow отримають роль.
+# github_repository = "vash-login/hillel-eks-practice"

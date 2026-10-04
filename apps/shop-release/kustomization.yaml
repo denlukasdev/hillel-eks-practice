@@ -1,0 +1,10 @@
+# Заняття 12. Реліз застосунку з чарту в ECR.
+# Flux застосовує цю теку через Kustomization release-sync
+# (cluster/flux-release.tf), яка підставляє ${ECR_REGISTRY}.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: shop-release
+resources:
+  - namespace.yaml
+  - oci-repository.yaml
+  - helm-release.yaml

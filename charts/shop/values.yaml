@@ -6,6 +6,8 @@
 
 image:
   repository: nginx
+  # Порожній тег = appVersion чарту. Так робить реліз із ECR (заняття 12),
+  # де CI збирає образ і чарт з однією версією.
   tag: "1.27-alpine"
 
 web:

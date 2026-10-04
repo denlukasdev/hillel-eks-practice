@@ -1,0 +1,101 @@
+# ---------------------------------------------------------------------------
+# Заняття 12. Від коміту до реєстру.
+#
+# Що робить: збирає образ застосунку, пакує чарт і публікує обидва в ECR
+# з ОДНІЄЮ версією. Розгортанням у кластер пайплайн НЕ займається —
+# нову версію чарту з реєстру сам підхопить Flux.
+#
+# У ФОРКУ workflow вимкнені: відкрийте вкладку Actions і ввімкніть їх.
+# Без змінної AWS_ROLE_ARN (Settings → Secrets and variables → Actions →
+# Variables) завдання пропускається — тому в основному репозиторії воно
+# нічого не робить.
+# ---------------------------------------------------------------------------
+name: release
+
+on:
+  push:
+    branches: [main]
+    # Лише коли змінилось те, з чого складається реліз. Зміна README чи
+    # маніфестів apps/ нову версію не створює.
+    paths:
+      - "app/**"
+      - "charts/shop/**"
+      - ".github/workflows/release.yaml"
+  # Кнопка Run workflow на вкладці Actions.
+  workflow_dispatch:
+
+# Права токена GITHUB_TOKEN для цього workflow. За замовчуванням — нічого
+# зайвого: читати код і отримати токен OIDC.
+permissions:
+  contents: read
+  id-token: write      # без цього GitHub не видасть токен для AWS
+
+env:
+  AWS_REGION: eu-central-1
+  IMAGE_REPOSITORY: shop
+  CHART_NAMESPACE: charts      # helm push сам додасть ім'я чарту: charts/shop
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: vars.AWS_ROLE_ARN != ''
+
+    steps:
+      - name: Код репозиторію
+        uses: actions/checkout@v7
+
+      # Одна версія на образ і чарт. run_number росте на одиницю з кожним
+      # запуском, тож версії не повторюються: 0.2.1, 0.2.2, 0.2.3...
+      # Повторний запуск того самого run (Re-run) дасть ту саму версію
+      # і впаде на push: теги в реєстрі незмінні, і це правильно.
+      - name: Версія
+        id: version
+        run: echo "value=0.2.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      # Жодного ключа AWS у секретах. GitHub видає короткоживучий токен OIDC,
+      # AWS міняє його на тимчасові облікові дані ролі (lessons/12-cicd).
+      - name: Доступ до AWS через OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Вхід у ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Зібрати й опублікувати образ
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          docker build \
+            --build-arg VERSION="$VERSION" \
+            --build-arg COMMIT="$GITHUB_SHA" \
+            -t "$REGISTRY/$IMAGE_REPOSITORY:$VERSION" \
+            app
+          docker push "$REGISTRY/$IMAGE_REPOSITORY:$VERSION"
+
+      # version    — версія чарту, за нею Flux шукає «новішу»;
+      # appVersion — тег образу: шаблон чарту бере його, якщо image.tag порожній.
+      - name: Запакувати й опублікувати чарт
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          helm lint charts/shop
+          helm package charts/shop --version "$VERSION" --app-version "$VERSION"
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | helm registry login --username AWS --password-stdin "$REGISTRY"
+          helm push "shop-$VERSION.tgz" "oci://$REGISTRY/$CHART_NAMESPACE"
+
+      - name: Підсумок
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          {
+            echo "### Опубліковано версію $VERSION"
+            echo "- образ: \`$REGISTRY/$IMAGE_REPOSITORY:$VERSION\`"
+            echo "- чарт: \`oci://$REGISTRY/$CHART_NAMESPACE/shop\` версії \`$VERSION\`"
+          } >> "$GITHUB_STEP_SUMMARY"

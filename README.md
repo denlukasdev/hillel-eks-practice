@@ -16,6 +16,8 @@ lessons/          Файли, які ви копіюєте в cluster/ по мі
 apps/shop/        Маніфести застосунку, які Flux розгортає в кластер.
 infrastructure/   Компоненти кластера, які ставить Flux (з заняття 10).
 charts/shop/      Власний Helm-чарт застосунку (з заняття 11).
+app/              Dockerfile образу застосунку (з заняття 12).
+.github/          Пайплайн GitHub Actions: образ і чарт у ECR (з заняття 12).
 docs/             Покрокові інструкції занять.
 ```
 
@@ -154,6 +156,18 @@ helm install shop-chart charts/shop -n shop-chart --create-namespace
 ```
 
 Деталі — `docs/lesson-11.md`.
+
+### 8. CI/CD (заняття 12, домашнє завдання)
+
+```bash
+cp lessons/12-cicd/*.tf cluster/
+# у cluster/terraform.tfvars:  github_repository = "ваш-логін/hillel-eks-practice"
+cd cluster && terraform apply
+```
+
+Далі у форку: увімкнути Actions, додати змінну `AWS_ROLE_ARN` і запустити
+workflow `release`. Flux сам розгорне опублікований чарт у namespace
+`shop-release`. Усі кроки — `docs/lesson-12.md`.
 
 ---
 

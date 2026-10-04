@@ -1,0 +1,36 @@
+# ---------------------------------------------------------------------------
+# HelmRelease — ЯК ставити чарт: з якими значеннями і що робити при збої.
+#
+# На занятті 10 HelmRelease посилався на чарт у HelmRepository (spec.chart).
+# Тут — на готовий артефакт OCIRepository (spec.chartRef).
+# ---------------------------------------------------------------------------
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: shop
+spec:
+  interval: 5m
+  releaseName: shop
+
+  chartRef:
+    kind: OCIRepository
+    name: shop-chart
+
+  # Якщо нова версія не піднялась — Flux сам відкотить реліз на попередню.
+  # Саме це робить автоматичне розгортання безпечним.
+  upgrade:
+    remediation:
+      retries: 2
+  install:
+    remediation:
+      retries: 2
+
+  values:
+    image:
+      # Наш образ із ECR замість nginx із Docker Hub.
+      repository: ${ECR_REGISTRY}/shop
+      # Порожній тег: шаблон чарту візьме appVersion — ту саму версію,
+      # з якою CI зібрав і образ, і чарт.
+      tag: ""
+    web:
+      message: "shop from ECR, delivered by Flux"

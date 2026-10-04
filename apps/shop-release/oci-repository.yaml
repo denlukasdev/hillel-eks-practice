@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# OCIRepository — ЗВІДКИ брати чарт і ЯКУ версію.
+#
+# Третій вид джерела у Flux після GitRepository (git) і HelmRepository
+# (класичний репозиторій чартів): артефакт у реєстрі OCI.
+# ---------------------------------------------------------------------------
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: shop-chart
+spec:
+  # Як часто питати реєстр про нові версії.
+  interval: 1m
+
+  # ${ECR_REGISTRY} підставляє Flux: адресу з номером акаунта знає Terraform.
+  url: oci://${ECR_REGISTRY}/charts/shop
+
+  # Облікові дані — з оточення source-controller, тобто з ролі через
+  # Pod Identity (cluster/flux-release.tf). Жодного Secret із паролем.
+  provider: aws
+
+  # ГОЛОВНЕ ПОЛЕ. Не конкретна версія, а діапазон: «найновіша з 0.2.x».
+  # CI опублікував 0.2.16 — Flux сам побачить її й розгорне.
+  # Хочете зафіксувати версію — напишіть точно: semver: "0.2.15".
+  ref:
+    semver: "0.2.x"
+
+  # В артефакті чарту кілька шарів; нам потрібен саме архів чарту.
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
