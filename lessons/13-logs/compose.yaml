@@ -1,0 +1,74 @@
+# ---------------------------------------------------------------------------
+# Заняття 13. Локальний стенд: застосунок -> збирач -> сховище -> пошук.
+#
+#   web  --(файл у спільному томі)-->  fluent-bit  --(HTTP)-->  victorialogs
+#    ^                                                               |
+#  loadgen                                    http://localhost:9428/select/vmui
+#
+# Запуск:     docker compose up -d
+# Зупинка:    docker compose down -v      (-v видаляє й томи з даними)
+#
+# AWS і кластер для цього стенда не потрібні.
+# ---------------------------------------------------------------------------
+name: shop-logs
+
+services:
+  # Застосунок: nginx, який пише журнал доступу у форматі JSON.
+  web:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - weblogs:/var/log/shop
+
+  # Навантаження: щосекунди кілька запитів, серед них — невдалі.
+  # $$ — це звичайний $ для оболонки: так Compose не чіпає змінні сам.
+  loadgen:
+    image: nginx:1.27-alpine
+    depends_on:
+      - web
+    command:
+      - sh
+      - -c
+      - |
+        i=0
+        while true; do
+          i=$$((i+1))
+          wget -q -O /dev/null -U "kube-probe/1.33"  http://web/healthz
+          wget -q -O /dev/null -U "shop-loadgen/1.0" http://web/
+          wget -q -O /dev/null -U "shop-loadgen/1.0" http://web/api/items
+          [ $$((i % 4)) -eq 0 ] && wget -q -O /dev/null -U "shop-loadgen/1.0" http://web/missing-$$((i % 3)) 2>/dev/null
+          [ $$((i % 7)) -eq 0 ] && wget -q -O /dev/null -U "curious-bot/0.1"  http://web/admin 2>/dev/null
+          [ $$((i % 9)) -eq 0 ] && wget -q -O /dev/null -U "shop-loadgen/1.0" http://web/api/pay 2>/dev/null
+          sleep 1
+        done
+
+  # Збирач: читає файл журналу, розбирає, збагачує й надсилає далі.
+  fluent-bit:
+    image: fluent/fluent-bit:5.1.3
+    depends_on:
+      - web
+      - victorialogs
+    entrypoint: ["/fluent-bit/bin/fluent-bit"]
+    command: ["-c", "/fluent-bit/etc/fluent-bit.yaml"]
+    volumes:
+      - ./fluent-bit/fluent-bit.yaml:/fluent-bit/etc/fluent-bit.yaml:ro
+      - weblogs:/var/log/shop:ro
+      - fbstate:/fluent-bit/state
+
+  # Сховище й пошук: один процес, вбудований вебінтерфейс.
+  victorialogs:
+    image: victoriametrics/victoria-logs:v1.53.0
+    ports:
+      - "9428:9428"
+    command:
+      - "-storageDataPath=/vlogs"
+      - "-retentionPeriod=3d"      # зберігати три дні, старіше видаляється само
+    volumes:
+      - vldata:/vlogs
+
+volumes:
+  weblogs:    # журнал nginx: пише web, читає fluent-bit
+  fbstate:    # позиція читання збирача
+  vldata:     # дані VictoriaLogs

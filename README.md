@@ -18,6 +18,7 @@ infrastructure/   Компоненти кластера, які ставить F
 charts/shop/      Власний Helm-чарт застосунку (з заняття 11).
 app/              Dockerfile образу застосунку (з заняття 12).
 .github/          Пайплайн GitHub Actions: образ і чарт у ECR (з заняття 12).
+lessons/13-logs/  Локальний стенд для логів: Docker Compose, без AWS (заняття 13).
 docs/             Покрокові інструкції занять.
 ```
 
@@ -168,6 +169,19 @@ cd cluster && terraform apply
 Далі у форку: увімкнути Actions, додати змінну `AWS_ROLE_ARN` і запустити
 workflow `release`. Flux сам розгорне опублікований чарт у namespace
 `shop-release`. Усі кроки — `docs/lesson-12.md`.
+
+### 9. Логи (заняття 13, домашнє завдання, необов'язкове)
+
+Terraform тут не змінюється. Три незалежні завдання: `kubectl logs` на своєму
+кластері, журнал аудиту кластера в CloudWatch Logs Insights і локальний стенд
+«збирач → сховище → пошук» у Docker Compose:
+
+```bash
+cd lessons/13-logs && docker compose up -d
+# http://localhost:9428/select/vmui
+```
+
+Усі кроки — `docs/lesson-13.md`.
 
 ---
 
