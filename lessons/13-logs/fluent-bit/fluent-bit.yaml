@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------------------
+# Заняття 13. Конвеєр збирача Fluent Bit:
+#
+#   inputs (звідки)  ->  filters (що зробити)  ->  outputs (куди)
+#
+# У кластері Fluent Bit працює як DaemonSet — по одному поду на вузол —
+# і так само читає файли плагіном tail, тільки з /var/log/containers/*.log.
+# ---------------------------------------------------------------------------
+service:
+  flush: 1              # віддавати накопичене щосекунди
+  log_level: info
+
+# Як розібрати рядок. Наш nginx уже пише JSON, тому розбирати просто.
+parsers:
+  - name: nginx_json
+    format: json
+    time_key: time                        # час події беремо з самого рядка,
+    time_format: "%Y-%m-%dT%H:%M:%S%z"    # а не «коли збирач його прочитав»
+
+pipeline:
+  inputs:
+    # 1. ЗВІДКИ: стежимо за файлами й читаємо нові рядки.
+    - name: tail
+      path: /var/log/shop/*.log
+      tag: shop.web
+      parser: nginx_json
+      read_from_head: true
+      refresh_interval: 5              # як часто шукати нові файли, секунди
+      # Позиція читання. Без неї після перезапуску збирач прочитав би
+      # файл із початку й надіслав усе вдруге.
+      db: /fluent-bit/state/tail.db
+
+  filters:
+    # 2. ЗБАГАТИТИ: додати поля, яких немає в самому рядку.
+    # У кластері це робить фільтр kubernetes: namespace, под, мітки.
+    - name: modify
+      match: shop.*
+      add:
+        - env local
+        - service web
+
+    # 3. ВІДФІЛЬТРУВАТИ (завдання із зірочкою).
+    # Перевірки стану — шум: їх багато, а користі з них мало.
+    # Розкоментуйте три рядки нижче й перезапустіть збирач:
+    #   docker compose restart fluent-bit
+    # - name: grep
+    #   match: shop.*
+    #   exclude: path ^/healthz$
+
+  outputs:
+    # 4. КУДИ: VictoriaLogs приймає рядки JSON на /insert/jsonline.
+    #   _stream_fields  поля, що визначають потік логів (у кластері — под)
+    #   _msg_field      яке поле вважати текстом повідомлення
+    #   _time_field     яке поле вважати часом події
+    - name: http
+      match: shop.*
+      host: victorialogs
+      port: 9428
+      uri: /insert/jsonline?_stream_fields=env,service&_msg_field=message&_time_field=date
+      format: json_lines
+      json_date_format: iso8601
